@@ -1,3 +1,8 @@
+package com.keyiflerolsun
+
+import android.content.Context
+import com.lagradost.cloudstream3.plugins.*
+
 @CloudstreamPlugin
 class InatBoxPlugin : Plugin() {
     override fun load(context: Context) {
