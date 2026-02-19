@@ -1,7 +1,7 @@
-name: Build
+name: Build & Release
 
 concurrency:
-  group: "build"
+  group: build
   cancel-in-progress: true
 
 on:
@@ -10,56 +10,140 @@ on:
       - master
       - main
     paths-ignore:
-      - '*.md'
-
-# Yazma izni verilmesi şart
-permissions:
-  contents: write
+      - "*.md"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Source
+      # ----------------------------
+      # Checkout Source
+      # ----------------------------
+      - name: Checkout source
         uses: actions/checkout@v4
         with:
-          path: "src"
+          fetch-depth: 0
 
-      - name: Checkout Builds Branch
-        uses: actions/checkout@v4
-        with:
-          ref: "builds"
-          path: "builds"
-
+      # ----------------------------
+      # Setup Java 21
+      # ----------------------------
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin' # Adoptium'un güncel adı
-          cache: 'gradle'
+          distribution: temurin
+          java-version: 21
+          cache: gradle
 
+      # ----------------------------
+      # Setup Android SDK
+      # ----------------------------
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+
+      # ----------------------------
+      # Build Plugins
+      # ----------------------------
       - name: Build Plugins
         run: |
-          cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson
-          
-          # build/ içindeki cs3 dosyalarını builds/ klasörüne taşı
-          # NOT: **/build/*.cs3 yapısı eğer alt klasörlerdeyse çalışır
-          find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds/ \;
-          cp build/plugins.json $GITHUB_WORKSPACE/builds/ || true
+          ./gradlew make
 
-      - name: Push builds
+      # ----------------------------
+      # Prepare builds folder
+      # ----------------------------
+      - name: Collect build outputs
         run: |
-          cd $GITHUB_WORKSPACE/builds
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          
-          # Değişiklik var mı kontrol et
+          rm -rf builds
+          mkdir builds
+          find . -type f -name "*.cs3" -exec cp {} builds \;
+
+      # ----------------------------
+      # Debug (kontrol amaçlı)
+      # ----------------------------
+      - name: Debug builds folder
+        run: |
+          echo "Build klasörü içeriği:"
+          ls -la builds
+
+      # ----------------------------
+      # Generate plugins.json
+      # ----------------------------
+      - name: Generate plugins.json
+        run: |
+          cd builds
+          shopt -s nullglob
+
+          echo "[" > plugins.json
+          first=true
+
+          for file in *.cs3; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo "," >> plugins.json
+            fi
+
+            echo "  {" >> plugins.json
+            echo "    \"name\": \"${file%.cs3}\"," >> plugins.json
+            echo "    \"url\": \"https://raw.githubusercontent.com/${{ github.repository }}/builds/$file\"" >> plugins.json
+            echo -n "  }" >> plugins.json
+          done
+
+          echo "" >> plugins.json
+          echo "]" >> plugins.json
+
+          echo "Oluşturulan plugins.json:"
+          cat plugins.json
+
+      # ----------------------------
+      # Push to builds branch
+      # ----------------------------
+      - name: Push builds branch
+        run: |
+          cd builds
+          git init
+          git checkout -B builds
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
           git add .
-          if [ -n "$(git status --porcelain)" ]; then
-            git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA"
-            git push --force
-          else
-            echo "Değişiklik yok, commit edilmedi."
-          fi
+          git commit -m "Build $GITHUB_SHA" || exit 0
+
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git push origin builds --force
+
+      # ----------------------------
+      # Create Version Tag
+      # ----------------------------
+      - name: Create Tag
+        id: tag
+        run: |
+          VERSION="v$(date +'%Y.%m.%d.%H%M%S')"
+          git tag $VERSION
+          git push origin $VERSION
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # ----------------------------
+      # Create GitHub Release
+      # ----------------------------
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: Release ${{ steps.tag.outputs.version }}
+          body: |
+            Automated build release.
+            Commit: ${{ github.sha }}
+          files: builds/*.cs3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------
+      # Upload Artifact
+      # ----------------------------
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugins
+          path: builds/
