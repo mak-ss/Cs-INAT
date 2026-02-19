@@ -11,10 +11,9 @@ class Vk : ExtractorApi() {
 
     override suspend fun getUrl(
         url: String,
-        referer: String?,
-        subtitleCallback: SubtitleCallback,
-        callback: (ExtractorLink) -> Unit
-    ) {
+        referer: String?
+    ): List<ExtractorLink>? {
+
         val res = app.get(url, referer = mainUrl)
 
         val m3u8 = Regex("\"([^\"]*m3u8[^\"]*)\"")
@@ -22,17 +21,17 @@ class Vk : ExtractorApi() {
             ?.groupValues?.get(1)
             ?.replace("\\/", "/")
 
-        if (m3u8 != null) {
-            callback.invoke(
-                newExtractorLink(
+        return if (m3u8 != null) {
+            listOf(
+                ExtractorLink(
                     source = name,
                     name = name,
                     url = m3u8,
-                    ExtractorLinkType.M3U8
-                ) {
-                    this.referer = mainUrl
-                }
+                    referer = mainUrl,
+                    quality = Qualities.Unknown.value,
+                    type = ExtractorLinkType.M3U8
+                )
             )
-        }
+        } else null
     }
 }
