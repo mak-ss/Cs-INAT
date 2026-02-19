@@ -11,20 +11,18 @@ class CDNJWPlayer : ExtractorApi() {
 
     override suspend fun getUrl(
         url: String,
-        referer: String?,
-        subtitleCallback: SubtitleCallback,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        callback.invoke(
-            newExtractorLink(
+        referer: String?
+    ): List<ExtractorLink>? {
+
+        return listOf(
+            ExtractorLink(
                 source = name,
                 name = name,
                 url = url,
-                ExtractorLinkType.M3U8
-            ) {
-                this.referer = referer ?: ""
-                this.quality = Qualities.Unknown.value
-            }
+                referer = referer ?: "",
+                quality = Qualities.Unknown.value,
+                type = ExtractorLinkType.M3U8
+            )
         )
     }
 }
