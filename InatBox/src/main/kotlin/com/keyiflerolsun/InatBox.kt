@@ -4,7 +4,6 @@ import android.util.Base64
 import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -15,14 +14,13 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class InatBox : MainAPI() {
-    private val contentUrl = "https://dizibox.rest" // Güncel domain 
+    private val contentUrl = "https://dizibox.rest"
     override var name = "InatBox"
     override val hasMainPage = true
     override var lang = "tr"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Live)
     
-    private val aesKey = "C3V4HUpUbGDOjxEl" // bakalim.py'den gelen anahtar 
-    private val urlToSearchResponse = mutableMapOf<String, SearchResponse>()
+    private val aesKey = "C3V4HUpUbGDOjxEl"
 
     override val mainPage = mainPageOf(
         "https://boxyz.cfd/CDN/001_STR/boxbc.sbs/spor_v2.php" to "Spor Kanalları",
@@ -32,47 +30,44 @@ class InatBox : MainAPI() {
         "${contentUrl}/film/yerli-filmler.php" to "Yerli Filmler"
     )
 
-    private fun getJsonFromEncryptedInatResponse(response: String): String? {
+    private fun decryptInat(encryptedData: String): String? {
         return try {
             val keyBytes = aesKey.toByteArray()
             val keySpec = SecretKeySpec(keyBytes, "AES")
-            val ivSpec = IvParameterSpec(keyBytes) // IV ve Key aynı 
+            val ivSpec = IvParameterSpec(keyBytes)
             val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
 
-            // 1. Kademe Çözme 
+            // 1. Kademe
             cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
-            val firstPart = response.split(":")[0]
-            val firstDecrypted = cipher.doFinal(Base64.decode(firstPart, Base64.DEFAULT))
+            val firstBase64 = encryptedData.split(":")[0]
+            val firstDecrypted = cipher.doFinal(Base64.decode(firstBase64, Base64.DEFAULT))
 
-            // 2. Kademe Çözme 
+            // 2. Kademe
             cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
-            val secondPart = String(firstDecrypted).split(":")[0]
-            val secondDecrypted = cipher.doFinal(Base64.decode(secondPart, Base64.DEFAULT))
+            val secondBase64 = String(firstDecrypted).split(":")[0]
+            val secondDecrypted = cipher.doFinal(Base64.decode(secondBase64, Base64.DEFAULT))
 
             String(secondDecrypted)
         } catch (e: Exception) {
-            Log.e("InatBox", "Dizzy Decryption Failed: ${e.message}")
+            Log.e("InatBox", "Çözme hatası: ${e.message}")
             null
         }
     }
 
     private suspend fun makeInatRequest(url: String): String? {
         val hostName = URI(url).host ?: return null
-        
         val headers = mapOf(
             "Host" to hostName,
             "Referer" to "https://speedrestapi.com/",
             "X-Requested-With" to "com.bp.box",
+            "User-Agent" to "speedrestapi",
             "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"
         )
-
-        val requestBody = "1=${aesKey}&0=${aesKey}".toRequestBody(headers["Content-Type"]?.toMediaType())
-
-        val response = app.post(url, headers = headers, requestBody = requestBody)
-        return if (response.isSuccessful) {
-            getJsonFromEncryptedInatResponse(response.text)
-        } else null
+        val body = "1=${aesKey}&0=${aesKey}".toRequestBody(headers["Content-Type"]?.toMediaType())
+        val response = app.post(url, headers = headers, requestBody = body)
+        
+        return if (response.isSuccessful) decryptInat(response.text) else null
     }
 
-    // ... (load, search ve diğer yardımcı fonksiyonlar mevcut yapıda kalabilir)
+    // Arama ve Yükleme fonksiyonları makeInatRequest'i kullanacak şekilde devam eder...
 }
