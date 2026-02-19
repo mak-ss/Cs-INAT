@@ -1,4 +1,4 @@
-version = 17 // Versiyonu bir artırdım 
+version = 1 // Versiyonu bir artırdım 
 
 cloudstream {
     authors     = listOf("JustRelaxable", "keyiflerolsun")
