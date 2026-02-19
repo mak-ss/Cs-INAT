@@ -1,9 +1,9 @@
-version = 1 // Versiyonu bir artırdım 
+version = 17
 
 cloudstream {
     authors     = listOf("JustRelaxable", "keyiflerolsun")
     language    = "tr"
-    description = "İnatBox cloudstream eklentisidir. Güncellenmiş API desteği."
-    status      = 1 // Beta'dan (3) OK (1) durumuna çektim 
+    description = "İnatBox cloudstream eklentisidir. Güncel API ve kararlı sürüm desteği."
+    status      = 1 // 1: Ok (Çalışıyor)
     tvTypes     = listOf("Movie", "TvSeries", "Live")
 }
