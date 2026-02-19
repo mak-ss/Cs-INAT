@@ -13,34 +13,30 @@ class Dzen : ExtractorApi() {
 
     override suspend fun getUrl(
         url: String,
-        referer: String?,
-        subtitleCallback: SubtitleCallback,
-        callback: (ExtractorLink) -> Unit
-    ) {
+        referer: String?
+    ): List<ExtractorLink>? {
 
         val doc = app.get(url, referer = mainUrl).document
 
         val script = doc.select("script")
             .find { it.data().contains("streams") }
-            ?.data() ?: return
+            ?.data() ?: return null
 
         val content = script.substringAfter("\"streams\":")
             .substringBefore("],") + "]"
 
-        val streams = tryParseJson<List<Stream>>(content) ?: return
+        val streams = tryParseJson<List<Stream>>(content) ?: return null
 
-        streams.forEach {
-            val streamUrl = it.url ?: return@forEach
+        return streams.mapNotNull {
+            val streamUrl = it.url ?: return@mapNotNull null
 
-            callback.invoke(
-                newExtractorLink(
-                    source = name,
-                    name = name,
-                    url = streamUrl,
-                    ExtractorLinkType.M3U8
-                ) {
-                    this.referer = ""
-                }
+            ExtractorLink(
+                source = name,
+                name = name,
+                url = streamUrl,
+                referer = "",
+                quality = Qualities.Unknown.value,
+                type = ExtractorLinkType.M3U8
             )
         }
     }
