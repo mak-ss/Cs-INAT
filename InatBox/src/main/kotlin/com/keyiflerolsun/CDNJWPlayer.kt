@@ -1,13 +1,9 @@
+@file:OptIn(com.lagradost.cloudstream3.utils.ExperimentalExtractorApi::class)
 package com.keyiflerolsun
 
 import com.lagradost.cloudstream3.SubtitleFile
-import com.lagradost.cloudstream3.utils.ExtractorApi
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.ExperimentalExtractorApi
+import com.lagradost.cloudstream3.utils.*
 
-@file:OptIn(ExperimentalExtractorApi::class)
 class CDNJWPlayer : ExtractorApi() {
     override val name = "JWPlayer"
     override val mainUrl = "https://cdn-jwplayer.com"
@@ -19,13 +15,15 @@ class CDNJWPlayer : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit, 
         callback: (ExtractorLink) -> Unit
     ) {
+        // Parametre sıralaması ve tipi CloudStream standartlarına göre düzeltildi
         callback.invoke(
-            newExtractorLink(
+            ExtractorLink(
                 this.name,
                 this.name,
                 url,
                 referer ?: "",
-                Qualities.P1080.value
+                Qualities.P1080.value,
+                false // isM3u8 parametresi (genellikle false veya url içeriğine göre)
             )
         )
     }
