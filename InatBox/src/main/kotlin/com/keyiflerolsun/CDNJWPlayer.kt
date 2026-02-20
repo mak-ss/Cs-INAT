@@ -1,37 +1,32 @@
 package com.keyiflerolsun
 
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.utils.ExtractorApi
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.ExperimentalExtractorApi
 
+@file:OptIn(ExperimentalExtractorApi::class)
 class CDNJWPlayer : ExtractorApi() {
-
-    override val name = "CDNJWPlayer"
-    override val mainUrl = "https://cdnjwplayer.com"
-    override val requiresReferer = false
+    override val name = "JWPlayer"
+    override val mainUrl = "https://cdn-jwplayer.com"
+    override val requiresReferer = true
 
     override suspend fun getUrl(
-        url: String,
-        referer: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
+        url: String, 
+        referer: String?, 
+        subtitleCallback: (SubtitleFile) -> Unit, 
         callback: (ExtractorLink) -> Unit
     ) {
-        val response = app.get(url)
-
-        val m3u8 = Regex("""file:\s*["']([^"']+\.m3u8[^"']*)""")
-            .find(response.text)
-            ?.groupValues?.get(1)
-
-        if (m3u8 != null) {
-            callback.invoke(
-                ExtractorLink(
-                    name,
-                    name,
-                    m3u8,
-                    "",
-                    Qualities.Unknown.value,
-                    ExtractorLinkType.M3U8
-                )
+        callback.invoke(
+            newExtractorLink(
+                this.name,
+                this.name,
+                url,
+                referer ?: "",
+                Qualities.P1080.value
             )
-        }
+        )
     }
 }
