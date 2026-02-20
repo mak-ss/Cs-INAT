@@ -1,4 +1,4 @@
-package com.keyiflerolsun
+package com.keyiflerolsu
 
 import android.util.Base64
 import android.util.Log
@@ -46,4 +46,5 @@ class InatBox : MainAPI() {
             null
         }
     }
+
 }
