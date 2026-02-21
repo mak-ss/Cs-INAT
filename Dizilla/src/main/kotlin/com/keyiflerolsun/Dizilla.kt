@@ -1,17 +1,13 @@
-package com.keyiflerolsun
+package com.nikyokki
 
 import android.util.Base64
 import android.util.Log
 import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
-import java.util.*
-import kotlin.coroutines.cancellation.CancellationException
 
 class Dizilla : MainAPI() {
 
@@ -19,185 +15,98 @@ class Dizilla : MainAPI() {
     override var name = "Dizilla"
     override val hasMainPage = true
     override var lang = "tr"
-    override val hasQuickSearch = true
-    override val supportedTypes = setOf(TvType.TvSeries)
+    override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
+
+    // ---------------- MAIN PAGE ----------------
 
     override val mainPage = mainPageOf(
-        "$mainUrl/dizi-izle" to "Yeni Eklenen Diziler"
+        "$mainUrl/diziler" to "Diziler",
+        "$mainUrl/filmler" to "Filmler"
     )
 
-    // ================= MAIN PAGE =================
+    override suspend fun getMainPage(
+        page: Int,
+        request: MainPageRequest
+    ): HomePageResponse {
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val document = app.get(request.data).document
 
-        val year = Calendar.getInstance().get(Calendar.YEAR)
+        val home = document.select("div.poster-item").mapNotNull {
+            val title = it.selectFirst("img")?.attr("alt") ?: return@mapNotNull null
+            val href = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val poster = it.selectFirst("img")?.attr("src")
 
-        val url =
-            "${request.data}?page=$page&tab=1&sort=date_desc&filterType=2&imdbMin=5&imdbMax=10&yearMin=1900&yearMax=$year"
-
-        val home = app.get(url).document
-            .select("a.w-full")
-            .mapNotNull { element ->
-
-                val title = element.selectFirst("h2")?.text()
-                    ?: return@mapNotNull null
-
-                val href = fixUrlNull(element.attr("href"))
-                    ?: return@mapNotNull null
-
-                val poster = fixUrlNull(
-                    element.selectFirst("img")?.attr("src")
-                )
-
-                newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                    this.posterUrl = poster
-                }
+            newTvSeriesSearchResponse(title, fixUrl(href)) {
+                this.posterUrl = poster
             }
+        }
 
         return newHomePageResponse(request.name, home)
     }
 
-    // ================= SEARCH =================
+    // ---------------- SEARCH ----------------
 
     override suspend fun search(query: String): List<SearchResponse> {
 
-        return try {
+        val document =
+            app.get("$mainUrl/?s=$query").document
 
-            val response = app.post(
-                "$mainUrl/api/bg/searchcontent?searchterm=$query",
-                referer = mainUrl
-            )
+        return document.select("div.poster-item").mapNotNull {
 
-            val mapper = ObjectMapper()
-                .registerModule(KotlinModule.Builder().build())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            val title = it.selectFirst("img")?.attr("alt") ?: return@mapNotNull null
+            val href = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val poster = it.selectFirst("img")?.attr("src")
 
-            val searchResult: SearchResult =
-                mapper.readValue(response.body.string(), SearchResult::class.java)
-
-            val decoded =
-                String(Base64.decode(searchResult.response ?: "", Base64.DEFAULT))
-
-            val content: SearchData =
-                mapper.readValue(decoded, SearchData::class.java)
-
-            content.result?.mapNotNull {
-
-                val title = it.title ?: return@mapNotNull null
-                val slug = it.slug ?: return@mapNotNull null
-
-                val link = fixUrlNull(slug)
-                    ?: return@mapNotNull null
-
-                newTvSeriesSearchResponse(title, link, TvType.TvSeries) {
-                    this.posterUrl = it.poster
-                }
-
-            } ?: emptyList()
-
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    override suspend fun quickSearch(query: String) = search(query)
-
-    // ================= LOAD SERIES =================
-
-    override suspend fun load(url: String): LoadResponse? {
-
-        try {
-
-            val document = app.get(url).document
-
-            val title =
-                document.selectFirst("div.poster.poster h2")?.ownText()
-                    ?: return null
-
-            val poster =
-                fixUrlNull(
-                    document.selectFirst("div.w-full.page-top.relative img")
-                        ?.attr("src")
-                )
-
-            val description =
-                document.selectFirst("div.mt-2.text-sm")
-                    ?.ownText()
-                    ?.trim()
-
-            val actors =
-                document.select("div.global-box h5")
-                    .map { Actor(it.ownText()) }
-
-            val script =
-                document.selectFirst("script#__NEXT_DATA__")
-                    ?.data()
-                    ?: return null
-
-            val mapper = ObjectMapper()
-                .registerModule(KotlinModule.Builder().build())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-
-            val root = mapper.readTree(script)
-
-            val secureData = root
-                .get("props")
-                ?.get("pageProps")
-                ?.get("secureData")
-                ?.asText()
-                ?: return null
-
-            val decoded =
-                String(Base64.decode(secureData, Base64.DEFAULT))
-
-            val decodedJson = mapper.readTree(decoded)
-
-            val episodeArray = decodedJson
-                .get("data")
-                ?.get("series")
-                ?.get("episodes")
-                ?: return null
-
-            val episodes = mutableListOf<Episode>()
-
-            episodeArray.forEach { ep ->
-
-                val slug = ep.get("slug")?.asText() ?: return@forEach
-                val epName = ep.get("title")?.asText()
-                val season = ep.get("season_number")?.asInt()
-                val number = ep.get("episode_number")?.asInt()
-
-                val link = fixUrlNull(slug) ?: return@forEach
-
-                episodes.add(
-                    newEpisode(link) {
-                        this.name = epName
-                        this.season = season
-                        this.episode = number
-                    }
-                )
-            }
-
-            return newTvSeriesLoadResponse(
-                title,
-                url,
-                TvType.TvSeries,
-                episodes
-            ) {
+            newTvSeriesSearchResponse(title, fixUrl(href)) {
                 this.posterUrl = poster
-                this.plot = description
-                addActors(actors)
             }
-
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e("DIZILLA_LOAD_ERROR", e.toString())
-            return null
         }
     }
 
-    // ================= LOAD LINKS =================
+    // ---------------- LOAD DETAIL ----------------
+
+    override suspend fun load(url: String): LoadResponse {
+
+        val document = app.get(url).document
+
+        val title =
+            document.selectFirst("h1")?.text()
+                ?: throw ErrorLoadingException()
+
+        val poster =
+            document.selectFirst("div.poster img")
+                ?.attr("src")
+
+        val description =
+            document.selectFirst("div.description")
+                ?.text()
+
+        val episodes = document
+            .select("div.episodes a")
+            .mapIndexed { index, element ->
+
+                val epName = element.text()
+                val epHref = fixUrl(element.attr("href"))
+
+                Episode(
+                    epHref,
+                    epName,
+                    index + 1
+                )
+            }
+
+        return newTvSeriesLoadResponse(
+            title,
+            url,
+            TvType.TvSeries,
+            episodes
+        ) {
+            this.posterUrl = poster
+            this.plot = description
+        }
+    }
+
+    // ---------------- LOAD LINKS ----------------
 
     override suspend fun loadLinks(
         data: String,
@@ -208,7 +117,19 @@ class Dizilla : MainAPI() {
 
         try {
 
-            val document = app.get(data).document
+            val response = app.get(
+                data,
+                headers = mapOf(
+                    "User-Agent" to
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language" to "tr-TR,tr;q=0.9",
+                    "Referer" to mainUrl,
+                    "Connection" to "keep-alive"
+                )
+            )
+
+            val document = response.document
 
             val script =
                 document.selectFirst("script#__NEXT_DATA__")
@@ -217,7 +138,10 @@ class Dizilla : MainAPI() {
 
             val mapper = ObjectMapper()
                 .registerModule(KotlinModule.Builder().build())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(
+                    DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+                    false
+                )
 
             val root = mapper.readTree(script)
 
@@ -239,19 +163,18 @@ class Dizilla : MainAPI() {
                     ?.get("sources")
                     ?: return false
 
-            if (!sources.isArray || sources.size() == 0)
-                return false
-
             sources.forEach { source ->
 
                 val html =
-                    source.get("source_content")?.asText()
+                    source.get("source_content")
+                        ?.asText()
                         ?: return@forEach
 
                 val iframe =
                     Jsoup.parse(html)
                         .selectFirst("iframe")
                         ?.attr("src")
+                        ?: return@forEach
 
                 val fixed = fixUrlNull(iframe)
                     ?: return@forEach
@@ -266,10 +189,8 @@ class Dizilla : MainAPI() {
 
             return true
 
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
-            Log.e("DIZILLA_LINK_ERROR", e.toString())
+            Log.e("DIZILLA_ERROR", e.toString())
             return false
         }
     }
