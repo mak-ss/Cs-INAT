@@ -1,20 +1,12 @@
-
 package com.keyiflerolsun
 
-import android.content.Context
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
+import android.content.Context
 
 @CloudstreamPlugin
-class DizillaPlugin: Plugin() {
+class SelcukFlixPlugin: Plugin() {
     override fun load(context: Context) {
-        registerMainAPI(Dizilla())
-        registerExtractorAPI(ContentX())
-        registerExtractorAPI(Hotlinger())
-        registerExtractorAPI(FourCX())
-        registerExtractorAPI(PlayRu())
-        registerExtractorAPI(FourPlayRu())
-        registerExtractorAPI(FourPichive())
-        registerExtractorAPI(Pichive())
+        registerMainAPI(SelcukFlix())
     }
 }
