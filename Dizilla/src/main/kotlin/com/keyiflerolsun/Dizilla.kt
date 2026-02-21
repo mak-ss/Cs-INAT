@@ -11,7 +11,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.Jsoup
 import java.util.Calendar
 
-class SelcukFlix : MainAPI() {
+class Dizilla : MainAPI() {
 
     override var mainUrl = "https://dizilla.to"
     override var name = "Dizilla"
@@ -23,7 +23,7 @@ class SelcukFlix : MainAPI() {
         .registerModule(KotlinModule.Builder().build())
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-    // ========================= MAIN PAGE =========================
+    // ================= MAIN PAGE =================
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
 
@@ -47,10 +47,13 @@ class SelcukFlix : MainAPI() {
         val data: ListItems = mapper.readValue(decoded)
 
         val home = data.result.map {
-            if (it.usedSlug?.contains("/dizi/") == true) {
+
+            val link = fixUrl(it.usedSlug ?: "")
+
+            if (link.contains("/dizi/")) {
                 newTvSeriesSearchResponse(
                     it.originalTitle ?: "",
-                    fixUrl(it.usedSlug ?: ""),
+                    link,
                     TvType.TvSeries
                 ) {
                     posterUrl = it.posterUrl
@@ -59,7 +62,7 @@ class SelcukFlix : MainAPI() {
             } else {
                 newMovieSearchResponse(
                     it.originalTitle ?: "",
-                    fixUrl(it.usedSlug ?: ""),
+                    link,
                     TvType.Movie
                 ) {
                     posterUrl = it.posterUrl
@@ -71,7 +74,7 @@ class SelcukFlix : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    // ========================= SEARCH =========================
+    // ================= SEARCH =================
 
     override suspend fun search(query: String): List<SearchResponse> {
 
@@ -93,16 +96,18 @@ class SelcukFlix : MainAPI() {
 
         return data.result?.map {
 
+            val link = fixUrl(it.slug ?: "")
+
             if (it.type == "Movies") {
                 newMovieSearchResponse(
                     it.title ?: "",
-                    fixUrl(it.slug ?: ""),
+                    link,
                     TvType.Movie
                 ) { posterUrl = it.poster }
             } else {
                 newTvSeriesSearchResponse(
                     it.title ?: "",
-                    fixUrl(it.slug ?: ""),
+                    link,
                     TvType.TvSeries
                 ) { posterUrl = it.poster }
             }
@@ -112,7 +117,7 @@ class SelcukFlix : MainAPI() {
 
     override suspend fun quickSearch(query: String) = search(query)
 
-    // ========================= LOAD =========================
+    // ================= LOAD =================
 
     override suspend fun load(url: String): LoadResponse {
 
@@ -145,7 +150,7 @@ class SelcukFlix : MainAPI() {
         // ===== DİZİ =====
         if (root.relatedResults.getSerieSeasonAndEpisodes != null) {
 
-            val episodes = mutableListOf<Episode>()
+            val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
 
             root.relatedResults.getSerieSeasonAndEpisodes.seasons?.forEach { season ->
                 season.episodes?.forEach { ep ->
@@ -187,7 +192,7 @@ class SelcukFlix : MainAPI() {
         }
     }
 
-    // ========================= LINKS =========================
+    // ================= LINKS =================
 
     override suspend fun loadLinks(
         data: String,
