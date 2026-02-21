@@ -7,7 +7,7 @@ import android.content.Context
 @CloudstreamPlugin
 class DizillaPlugin: Plugin() {
     override fun load(context: Context) {
-        // Ana API sınıfını doğru isimle kaydediyoruz
+        // Ana API sınıfını kaydediyoruz
         registerMainAPI(Dizilla())
     }
 }
