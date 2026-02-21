@@ -138,7 +138,7 @@ class Dizilla : MainAPI() {
         val trailer = root.relatedResults.getContentTrailers?.result?.firstOrNull()?.rawUrl
 
         if (root.relatedResults.getSerieSeasonAndEpisodes != null) {
-            val eps = mutableListOf<Episode>()
+            val eps = mutableListOf<com.lagradost.cloudstream3.Episode>()
             root.relatedResults.getSerieSeasonAndEpisodes.seasons?.forEach { season ->
                 season.episodes?.forEach { ep ->
                     eps.add(newEpisode(fixUrlNull(ep.usedSlug)) {
