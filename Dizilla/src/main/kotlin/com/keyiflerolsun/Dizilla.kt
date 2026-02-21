@@ -77,8 +77,8 @@ class Dizilla : MainAPI() {
         val response = app.post(url, headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
         
-        // DÜZELTME: Karakter seti doğrudan String üzerinden güvenli şekilde çözülüyor
-        val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
+        // DÜZELTME: base64Decode sonucu ByteArray döner, direkt String'e çeviriyoruz
+        val decoded = String(base64Decode(searchResult.response ?: ""))
         val listItems: ListItems = objectMapper.readValue(decoded)
         
         return newHomePageResponse(request.name, listItems.result.map { it.toMainPageResult() })
@@ -106,8 +106,8 @@ class Dizilla : MainAPI() {
         val response = app.post("$mainUrl/api/bg/searchcontent?searchterm=$query", headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
         
-        // DÜZELTME: Güvenli UTF-8 decoding
-        val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
+        // DÜZELTME: base64Decode sonucu ByteArray döner
+        val decoded = String(base64Decode(searchResult.response ?: ""))
         val contentJson: SearchData = objectMapper.readValue(decoded)
 
         return contentJson.result?.filter { it.slug?.contains("/seri-filmler/") == false }?.map {
@@ -129,8 +129,8 @@ class Dizilla : MainAPI() {
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: throw ErrorLoadingException("Data not found")
         val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
         
-        // DÜZELTME: ISO_8859_1 bağımlılığı kaldırıldı
-        val decoded = String(base64Decode(secureData), Charsets.UTF_8)
+        // DÜZELTME: base64Decode sonucu ByteArray döner
+        val decoded = String(base64Decode(secureData))
         val root: Root = objectMapper.readValue(decoded)
         
         val item = root.contentItem
@@ -181,7 +181,9 @@ class Dizilla : MainAPI() {
         val doc = app.get(data).document
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: return false
         val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
-        val decoded = String(base64Decode(secureData), Charsets.UTF_8)
+        
+        // DÜZELTME: base64Decode sonucu ByteArray döner
+        val decoded = String(base64Decode(secureData))
         val root: Root = objectMapper.readValue(decoded)
         
         val iframes = mutableListOf<SourceItem>()
