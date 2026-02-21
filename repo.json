@@ -4,6 +4,6 @@
   "description": "Plugins Across All Categories and Languages.",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/Sertel392/Cs-INAT/refs/heads/master/plugins.json"
+    "https://raw.githubusercontent.com/mak-ss/Cs-INAT/refs/heads/master/plugins.json"
   ]
 }
