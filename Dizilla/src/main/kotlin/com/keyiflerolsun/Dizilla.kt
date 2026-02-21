@@ -77,8 +77,8 @@ class Dizilla : MainAPI() {
         val response = app.post(url, headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
         
-        // DÜZELTME: base64Decode sonucu ByteArray döner, direkt String'e çeviriyoruz
-        val decoded = String(base64Decode(searchResult.response ?: ""))
+        // DÜZELTME: base64Decode zaten String döndürdüğü için direkt kullanıyoruz
+        val decoded = base64Decode(searchResult.response ?: "")
         val listItems: ListItems = objectMapper.readValue(decoded)
         
         return newHomePageResponse(request.name, listItems.result.map { it.toMainPageResult() })
@@ -106,8 +106,7 @@ class Dizilla : MainAPI() {
         val response = app.post("$mainUrl/api/bg/searchcontent?searchterm=$query", headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
         
-        // DÜZELTME: base64Decode sonucu ByteArray döner
-        val decoded = String(base64Decode(searchResult.response ?: ""))
+        val decoded = base64Decode(searchResult.response ?: "")
         val contentJson: SearchData = objectMapper.readValue(decoded)
 
         return contentJson.result?.filter { it.slug?.contains("/seri-filmler/") == false }?.map {
@@ -129,8 +128,7 @@ class Dizilla : MainAPI() {
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: throw ErrorLoadingException("Data not found")
         val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
         
-        // DÜZELTME: base64Decode sonucu ByteArray döner
-        val decoded = String(base64Decode(secureData))
+        val decoded = base64Decode(secureData)
         val root: Root = objectMapper.readValue(decoded)
         
         val item = root.contentItem
@@ -182,8 +180,7 @@ class Dizilla : MainAPI() {
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: return false
         val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
         
-        // DÜZELTME: base64Decode sonucu ByteArray döner
-        val decoded = String(base64Decode(secureData))
+        val decoded = base64Decode(secureData)
         val root: Root = objectMapper.readValue(decoded)
         
         val iframes = mutableListOf<SourceItem>()
@@ -193,7 +190,10 @@ class Dizilla : MainAPI() {
             }
         } else {
             root.relatedResults.getMoviePartsById?.result?.forEach { part ->
-                val partNode = objectMapper.readTree(decoded).get("RelatedResults").get("getMoviePartSourcesById_${part.id}")
+                // DÜZELTME: JSON düğümü okuma mantığı güvenli hale getirildi
+                val relatedResultsNode = objectMapper.readTree(decoded).get("RelatedResults")
+                val partNode = relatedResultsNode?.get("getMoviePartSourcesById_${part.id}")
+                
                 partNode?.get("result")?.forEach { src ->
                     iframes.add(SourceItem(src.get("source_content").asText(), src.get("quality_name").asText()))
                 }
