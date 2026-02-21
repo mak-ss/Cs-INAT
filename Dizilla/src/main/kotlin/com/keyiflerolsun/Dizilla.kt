@@ -15,7 +15,7 @@ import java.util.Calendar
 // Çakışmayı önlemek için senin modeline takma ad verdik
 import com.keyiflerolsun.Episode as DizillaEpisode 
 
-class SelcukFlix : MainAPI() {
+class Dizilla : MainAPI() {
     override var mainUrl = "https://dizilla.to"
     override var name = "Dizilla"
     override val hasMainPage = true
