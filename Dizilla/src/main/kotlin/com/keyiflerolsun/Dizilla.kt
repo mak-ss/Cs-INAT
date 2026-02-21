@@ -93,7 +93,7 @@ class Dizilla : MainAPI() {
 
     override suspend fun quickSearch(query: String) = search(query)
 
-    // ===================== LOAD =====================
+    // ===================== LOAD (EPISODES JSON'DAN) =====================
 
     override suspend fun load(url: String): LoadResponse? {
 
@@ -113,44 +113,52 @@ class Dizilla : MainAPI() {
             val description =
                 document.selectFirst("div.mt-2.text-sm")?.ownText()?.trim()
 
-            val year = document
-                .select("div.w-fit.min-w-fit")
-                .getOrNull(1)
-                ?.selectFirst("span.text-sm.opacity-60")
-                ?.ownText()
-                ?.split(" ")
-                ?.lastOrNull()
-                ?.toIntOrNull()
+            val script =
+                document.selectFirst("script#__NEXT_DATA__")
+                    ?.data()
+                    ?: return null
 
-            val actors =
-                document.select("div.global-box h5")
-                    .map { Actor(it.ownText()) }
+            val mapper = ObjectMapper()
+                .registerModule(KotlinModule.Builder().build())
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+            val root = mapper.readTree(script)
+
+            val secureData = root
+                .get("props")
+                ?.get("pageProps")
+                ?.get("secureData")
+                ?.asText()
+                ?: return null
+
+            val decoded =
+                String(Base64.decode(secureData, Base64.DEFAULT))
+
+            val decodedJson = mapper.readTree(decoded)
+
+            val episodeArray = decodedJson
+                .get("RelatedResults")
+                ?.get("getEpisodesBySeriesId")
+                ?.get("result")
+                ?: return null
 
             val episodes = mutableListOf<Episode>()
 
-            document.select("div.episodes div.cursor-pointer")
-                .forEach { ep ->
+            episodeArray.forEach { ep ->
 
-                    val links = ep.select("a")
-                    if (links.isEmpty()) return@forEach
+                val slug = ep.get("slug")?.asText() ?: return@forEach
+                val epName = ep.get("title")?.asText()
+                val epNumber = ep.get("episode_number")?.asInt()
 
-                    val epName = links.last()?.ownText() ?: return@forEach
-                    val epHref =
-                        fixUrlNull(links.last()?.attr("href"))
-                            ?: return@forEach
+                val link = fixUrlNull(slug) ?: return@forEach
 
-                    val epNumber =
-                        links.first()?.ownText()
-                            ?.trim()
-                            ?.toIntOrNull()
-
-                    episodes.add(
-                        newEpisode(epHref) {
-                            this.name = epName
-                            this.episode = epNumber
-                        }
-                    )
-                }
+                episodes.add(
+                    newEpisode(link) {
+                        this.name = epName
+                        this.episode = epNumber
+                    }
+                )
+            }
 
             return newTvSeriesLoadResponse(
                 title,
@@ -159,14 +167,13 @@ class Dizilla : MainAPI() {
                 episodes
             ) {
                 this.posterUrl = poster
-                this.year = year
                 this.plot = description
-                addActors(actors)
             }
 
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.e("DIZILLA_LOAD_ERROR", e.toString())
             return null
         }
     }
@@ -184,10 +191,10 @@ class Dizilla : MainAPI() {
 
             val document = app.get(data).document
 
-            val script = document
-                .selectFirst("script#__NEXT_DATA__")
-                ?.data()
-                ?: return false
+            val script =
+                document.selectFirst("script#__NEXT_DATA__")
+                    ?.data()
+                    ?: return false
 
             val mapper = ObjectMapper()
                 .registerModule(KotlinModule.Builder().build())
@@ -207,43 +214,25 @@ class Dizilla : MainAPI() {
 
             val decodedJson = mapper.readTree(decoded)
 
-            Log.e("DIZILLA_DEBUG", decodedJson.toPrettyString())
-
-            val oldSource = decodedJson
+            val sourceArray = decodedJson
                 .get("RelatedResults")
                 ?.get("getEpisodeSources")
                 ?.get("result")
+                ?: return false
 
-            val sourceContent: String? = when {
-                oldSource?.isArray == true -> {
-                    oldSource.get(0)
-                        ?.get("source_content")
-                        ?.asText()
-                }
-
-                else -> {
-                    decodedJson
-                        .get("data")
-                        ?.get("episode")
-                        ?.get("sources")
-                        ?.get(0)
-                        ?.get("source_content")
-                        ?.asText()
-                }
-            }
-
-            if (sourceContent.isNullOrEmpty()) {
-                Log.e("DIZILLA_DEBUG", "SOURCE BULUNAMADI")
+            if (!sourceArray.isArray || sourceArray.size() == 0)
                 return false
-            }
+
+            val sourceContent = sourceArray[0]
+                ?.get("source_content")
+                ?.asText()
+                ?: return false
 
             val iframe = fixUrlNull(
                 Jsoup.parse(sourceContent)
                     .selectFirst("iframe")
                     ?.attr("src")
             ) ?: return false
-
-            Log.e("DIZILLA_DEBUG", "IFRAME: $iframe")
 
             loadExtractor(
                 iframe,
@@ -257,7 +246,7 @@ class Dizilla : MainAPI() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e("DIZILLA_ERROR", e.toString())
+            Log.e("DIZILLA_LINK_ERROR", e.toString())
             return false
         }
     }
