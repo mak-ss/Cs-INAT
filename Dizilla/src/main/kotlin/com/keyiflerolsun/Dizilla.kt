@@ -15,8 +15,10 @@ class Dizilla : MainAPI() {
     override val hasMainPage = false
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
-    private val mapper = ObjectMapper()
-
+    override val mainPage = mainPageOf(
+        //"${mainUrl}/trend" to "Yeni Bölümler",
+      )
+    
     override suspend fun search(query: String): List<SearchResponse> {
 
         val response = app.get("$mainUrl/?s=$query").document
