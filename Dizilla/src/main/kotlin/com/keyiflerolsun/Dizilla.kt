@@ -184,7 +184,6 @@ class Dizilla : MainAPI() {
                     ?.split(" ")
                     ?.lastOrNull()
                     ?.toIntOrNull()
-            } else {
             }
 
             val description = document.selectFirst("div.mt-2.text-sm")?.ownText()?.trim()
@@ -192,11 +191,12 @@ class Dizilla : MainAPI() {
             val tagsText = document.selectFirst("div.poster.poster h3")?.ownText()
             val tags = tagsText?.split(",")?.map { it.trim() }
 
-            val ratingText = document.selectFirst("div.flex.items-center")
-                ?.selectFirst("span.text-white.text-sm")
+            // HATA DÜZELTME: toRatingInt() yerine Double score kullanıldı
+            val score = document.selectFirst("div.flex.items-center span.text-white.text-sm")
                 ?.ownText()
-                ?.trim()
-            val rating = ratingText.toRatingInt()
+                ?.split("/")
+                ?.firstOrNull()
+                ?.toDoubleOrNull()
 
             val actorsElements = document.select("div.global-box h5")
             val actors = actorsElements.map { Actor(it.ownText()) }
@@ -233,7 +233,7 @@ class Dizilla : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = score // rating yerine score atandı
                 addActors(actors)
             }
         } catch (e: CancellationException) {
