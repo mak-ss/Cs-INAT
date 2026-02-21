@@ -191,7 +191,7 @@ class Dizilla : MainAPI() {
             val tagsText = document.selectFirst("div.poster.poster h3")?.ownText()
             val tags = tagsText?.split(",")?.map { it.trim() }
 
-            // HATA DÜZELTME: toRatingInt() yerine Double score kullanıldı
+            // score API güncellemesi (199. satırdaki hata düzeltildi)
             val score = document.selectFirst("div.flex.items-center span.text-white.text-sm")
                 ?.ownText()
                 ?.split("/")
@@ -233,7 +233,7 @@ class Dizilla : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.score = score // rating yerine score atandı
+                this.score = score // rating yerine score kullanıldı (236. satırdaki hata düzeltildi)
                 addActors(actors)
             }
         } catch (e: CancellationException) {
