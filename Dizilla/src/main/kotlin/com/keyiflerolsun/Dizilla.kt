@@ -14,8 +14,9 @@ import org.jsoup.Jsoup
 import java.util.Calendar
 // Çakışmayı önlemek için senin modeline takma ad verdik
 import com.keyiflerolsun.Episode as DizillaEpisode 
+import com.lagradost.cloudstream3.Episode as CloudstreamEpisode
 
-class Dizilla : MainAPI() {
+class SelcukFlix : MainAPI() {
     override var mainUrl = "https://dizilla.to"
     override var name = "Dizilla"
     override val hasMainPage = true
@@ -64,24 +65,18 @@ class Dizilla : MainAPI() {
 
     private fun decodeSecureData(data: String?): String {
         if (data == null) return ""
-        // Tırnakları temizle ve Base64 çöz
         val cleanData = data.replace("\"", "")
         return try {
             val decodedBytes = base64Decode(cleanData).toByteArray(Charsets.ISO_8859_1)
             String(decodedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
-            // Eğer üstteki hata verirse direkt UTF-8 dene
             String(base64Decode(cleanData).toByteArray(), Charsets.UTF_8)
         }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val yil = Calendar.getInstance().get(Calendar.YEAR)
-        var url = "$mainUrl/api/bg/findMovies?releaseYearStart=1900&releaseYearEnd=$yil&imdbPointMin=1&imdbPointMax=10&categoryIdsComma=${request.data}&orderType=date_desc&currentPage=${page}&currentPageCount=12"
-        
-        if (request.name.contains("Dizi")) {
-            url = url.replace("findMovies", "findSeries")
-        }
+        val url = "$mainUrl/api/bg/${if (request.name.contains("Dizi")) "findSeries" else "findMovies"}?releaseYearStart=1900&releaseYearEnd=$yil&imdbPointMin=1&imdbPointMax=10&categoryIdsComma=${request.data}&orderType=date_desc&currentPage=${page}&currentPageCount=12"
 
         val response = app.post(url, headers = mapOf("X-Requested-With" to "XMLHttpRequest"), referer = "$mainUrl/").toString()
         val searchResult: SearchResult = mapper.readValue(response)
@@ -147,7 +142,7 @@ class Dizilla : MainAPI() {
         val trailer = root.relatedResults.getContentTrailers?.result?.firstOrNull()?.rawUrl
 
         if (root.relatedResults.getSerieSeasonAndEpisodes != null) {
-            val eps = mutableListOf<Episode>()
+            val eps = mutableListOf<CloudstreamEpisode>()
             root.relatedResults.getSerieSeasonAndEpisodes.seasons?.forEach { season ->
                 season.episodes?.forEach { ep ->
                     eps.add(newEpisode(fixUrlNull(ep.usedSlug)) {
@@ -185,7 +180,6 @@ class Dizilla : MainAPI() {
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: return false
         val secureData = mapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
         val converted = decodeSecureData(secureData)
-        
         val root: Root = mapper.readValue(converted)
         val iframes = mutableListOf<SourceItem>()
         
