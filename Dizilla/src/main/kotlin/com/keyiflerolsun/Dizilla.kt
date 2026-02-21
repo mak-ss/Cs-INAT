@@ -1,9 +1,6 @@
 package com.keyiflerolsun
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.HomePageResponse
-import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.TvType
@@ -18,7 +15,6 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.Jsoup
-import java.util.*
 
 class Dizilla : MainAPI() {
 
@@ -28,15 +24,13 @@ class Dizilla : MainAPI() {
     override val hasMainPage = false
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
-    override val mainPage = mainPageOf(
-        //"${mainUrl}/trend" to "Yeni Bölümler",
-      )
-    
+    // ================= SEARCH =================
+
     override suspend fun search(query: String): List<SearchResponse> {
 
-        val response = app.get("$mainUrl/?s=$query").document
+        val document = app.get("$mainUrl/?s=$query").document
 
-        return response.select("div.poster").mapNotNull { element ->
+        return document.select("div.poster").mapNotNull { element ->
 
             val title = element.selectFirst("img")?.attr("alt") ?: return@mapNotNull null
             val link = element.selectFirst("a")?.attr("href") ?: return@mapNotNull null
@@ -54,6 +48,10 @@ class Dizilla : MainAPI() {
         }
     }
 
+    override suspend fun quickSearch(query: String) = search(query)
+
+    // ================= LOAD =================
+
     override suspend fun load(url: String): LoadResponse {
 
         val document = app.get(url).document
@@ -62,9 +60,10 @@ class Dizilla : MainAPI() {
         val poster = document.selectFirst(".poster img")?.attr("src")
         val description = document.selectFirst(".overview")?.text()
 
+        // ===== DİZİ =====
         if (url.contains("/dizi/")) {
 
-            val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
+            val episodes = mutableListOf<Episode>()
 
             document.select("div.episode a").forEachIndexed { index, element ->
                 val epLink = element.attr("href")
@@ -88,6 +87,7 @@ class Dizilla : MainAPI() {
             }
         }
 
+        // ===== FİLM =====
         return newMovieLoadResponse(
             title,
             url,
@@ -98,6 +98,8 @@ class Dizilla : MainAPI() {
             this.plot = description
         }
     }
+
+    // ================= LINKS =================
 
     override suspend fun loadLinks(
         data: String,
