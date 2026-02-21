@@ -1,6 +1,7 @@
 package com.keyiflerolsun
 
 import android.util.Base64
+import android.util.Log
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -23,31 +24,41 @@ class Dizilla : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/dizi-izle" to "Yeni Eklenen Diziler"
+        "$mainUrl/dizi-izle" to "Yeni Eklenen Diziler"
     )
+
+    // ===================== MAIN PAGE =====================
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
 
-        val document = app.get("${request.data}?page=$page").document
+        val yil = Calendar.getInstance().get(Calendar.YEAR)
+        val url =
+            "${request.data}?page=$page&tab=1&sort=date_desc&filterType=2&imdbMin=5&imdbMax=10&yearMin=1900&yearMax=$yil"
 
-        val home = document.select("a.w-full").mapNotNull { element ->
-            val title = element.selectFirst("h2")?.text() ?: return@mapNotNull null
-            val href = fixUrlNull(element.attr("href")) ?: return@mapNotNull null
-            val poster = fixUrlNull(element.selectFirst("img")?.attr("src"))
+        val home = app.get(url).document
+            .select("a.w-full")
+            .mapNotNull { element ->
 
-            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                this.posterUrl = poster
+                val title = element.selectFirst("h2")?.text() ?: return@mapNotNull null
+                val href = fixUrlNull(element.attr("href")) ?: return@mapNotNull null
+                val poster = fixUrlNull(element.selectFirst("img")?.attr("src"))
+
+                newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                    this.posterUrl = poster
+                }
             }
-        }
 
         return newHomePageResponse(request.name, home)
     }
 
+    // ===================== SEARCH =====================
+
     override suspend fun search(query: String): List<SearchResponse> {
+
         return try {
 
             val response = app.post(
-                "${mainUrl}/api/bg/searchcontent?searchterm=$query",
+                "$mainUrl/api/bg/searchcontent?searchterm=$query",
                 referer = mainUrl
             )
 
@@ -64,6 +75,7 @@ class Dizilla : MainAPI() {
             val content: SearchData = mapper.readValue(decoded)
 
             content.result?.mapNotNull {
+
                 val title = it.title ?: return@mapNotNull null
                 val slug = it.slug ?: return@mapNotNull null
                 val link = fixUrlNull(slug) ?: return@mapNotNull null
@@ -71,6 +83,7 @@ class Dizilla : MainAPI() {
                 newTvSeriesSearchResponse(title, link, TvType.TvSeries) {
                     this.posterUrl = it.poster
                 }
+
             } ?: emptyList()
 
         } catch (e: Exception) {
@@ -80,9 +93,12 @@ class Dizilla : MainAPI() {
 
     override suspend fun quickSearch(query: String) = search(query)
 
+    // ===================== LOAD =====================
+
     override suspend fun load(url: String): LoadResponse? {
 
         try {
+
             val document = app.get(url).document
 
             val title =
@@ -155,6 +171,8 @@ class Dizilla : MainAPI() {
         }
     }
 
+    // ===================== LOAD LINKS =====================
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -163,12 +181,13 @@ class Dizilla : MainAPI() {
     ): Boolean {
 
         try {
+
             val document = app.get(data).document
 
-            val script =
-                document.selectFirst("script#__NEXT_DATA__")
-                    ?.data()
-                    ?: return false
+            val script = document
+                .selectFirst("script#__NEXT_DATA__")
+                ?.data()
+                ?: return false
 
             val mapper = ObjectMapper()
                 .registerModule(KotlinModule.Builder().build())
@@ -176,41 +195,69 @@ class Dizilla : MainAPI() {
 
             val root = mapper.readTree(script)
 
-            val secureData =
-                root.get("props")
-                    ?.get("pageProps")
-                    ?.get("secureData")
-                    ?.asText()
-                    ?: return false
+            val secureData = root
+                .get("props")
+                ?.get("pageProps")
+                ?.get("secureData")
+                ?.asText()
+                ?: return false
 
             val decoded =
                 String(Base64.decode(secureData, Base64.DEFAULT))
 
             val decodedJson = mapper.readTree(decoded)
 
-            val source =
-                decodedJson.get("RelatedResults")
-                    ?.get("getEpisodeSources")
-                    ?.get("result")
-                    ?.get(0)
-                    ?.get("source_content")
-                    ?.asText()
-                    ?: return false
+            Log.e("DIZILLA_DEBUG", decodedJson.toPrettyString())
 
-            val iframe =
-                fixUrlNull(
-                    Jsoup.parse(source)
-                        .selectFirst("iframe")
-                        ?.attr("src")
-                ) ?: return false
+            val oldSource = decodedJson
+                .get("RelatedResults")
+                ?.get("getEpisodeSources")
+                ?.get("result")
 
-            loadExtractor(iframe, mainUrl, subtitleCallback, callback)
+            val sourceContent: String? = when {
+                oldSource?.isArray == true -> {
+                    oldSource.get(0)
+                        ?.get("source_content")
+                        ?.asText()
+                }
+
+                else -> {
+                    decodedJson
+                        .get("data")
+                        ?.get("episode")
+                        ?.get("sources")
+                        ?.get(0)
+                        ?.get("source_content")
+                        ?.asText()
+                }
+            }
+
+            if (sourceContent.isNullOrEmpty()) {
+                Log.e("DIZILLA_DEBUG", "SOURCE BULUNAMADI")
+                return false
+            }
+
+            val iframe = fixUrlNull(
+                Jsoup.parse(sourceContent)
+                    .selectFirst("iframe")
+                    ?.attr("src")
+            ) ?: return false
+
+            Log.e("DIZILLA_DEBUG", "IFRAME: $iframe")
+
+            loadExtractor(
+                iframe,
+                iframe,
+                subtitleCallback,
+                callback
+            )
 
             return true
 
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.e("DIZILLA_ERROR", e.toString())
             return false
         }
     }
