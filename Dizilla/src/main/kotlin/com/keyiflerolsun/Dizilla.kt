@@ -24,7 +24,7 @@ class Dizilla : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/arsiv" to "Yeni Eklenen Diziler"
+        "${mainUrl}/dizi-izle" to "Yeni Eklenen Diziler"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
