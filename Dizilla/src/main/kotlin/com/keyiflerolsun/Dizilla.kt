@@ -1,5 +1,3 @@
-// ! Bu araç @keyiflerolsun tarafından | @KekikAkademi için yazılmıştır.
-
 package com.keyiflerolsun
 
 import android.util.Base64
@@ -27,91 +25,73 @@ class Dizilla : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/arsiv" to "Yeni Eklenen Diziler",
-        "${mainUrl}/dizi-turu/aile" to "Aile",
-        "${mainUrl}/dizi-turu/aksiyon" to "Aksiyon",
-        "${mainUrl}/dizi-turu/bilim-kurgu" to "Bilim Kurgu",
-        "${mainUrl}/dizi-turu/dram" to "Dram",
-        "${mainUrl}/dizi-turu/fantastik" to "Fantastik",
-        "${mainUrl}/dizi-turu/gerilim" to "Gerilim",
-        "${mainUrl}/dizi-turu/komedi" to "Komedi",
-        "${mainUrl}/dizi-turu/korku" to "Korku",
-        "${mainUrl}/dizi-turu/macera" to "Macera",
-        "${mainUrl}/dizi-turu/romantik" to "Romantik",
+        "${mainUrl}/arsiv" to "Yeni Eklenen Diziler"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val year = Calendar.getInstance().get(Calendar.YEAR)
+        val url = "${request.data}?page=$page&yearMax=$year"
+        val document = app.get(url).document
 
-        var document = app.get(request.data).document
+        val items = document.select("a.w-full").mapNotNull {
+            val title = it.selectFirst("h2")?.text() ?: return@mapNotNull null
+            val href = fixUrlNull(it.attr("href")) ?: return@mapNotNull null
+            val poster = fixUrlNull(it.selectFirst("img")?.attr("src"))
 
-        val home = if (request.data.contains("/arsiv")) {
-            val yil = Calendar.getInstance().get(Calendar.YEAR)
-            val url = "${request.data}?page=$page&tab=1&sort=date_desc&filterType=2&imdbMin=5&imdbMax=10&yearMin=1900&yearMax=$yil"
-            document = app.get(url).document
-            document.select("a.w-full").mapNotNull { it.toSeries() }
-        } else {
-            document.select("div.col-span-3 a").mapNotNull { it.toSeries() }
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = poster
+            }
         }
 
-        return newHomePageResponse(request.name, home)
-    }
-
-    private fun Element.toSeries(): SearchResponse? {
-        val title = this.selectFirst("h2")?.text() ?: return null
-        val href = fixUrlNull(this.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
-
-        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-            this.posterUrl = posterUrl
-        }
+        return newHomePageResponse(request.name, items)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         return try {
+
             val response = app.post(
                 "${mainUrl}/api/bg/searchcontent?searchterm=$query",
                 referer = mainUrl
             )
 
-            val objectMapper = ObjectMapper()
+            val mapper = ObjectMapper()
                 .registerModule(KotlinModule.Builder().build())
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-            val searchResult: SearchResult =
-                objectMapper.readValue(response.body.string())
+            val result: SearchResult =
+                mapper.readValue(response.body.string())
 
             val decoded =
-                String(Base64.decode(searchResult.response ?: "", Base64.DEFAULT))
+                String(Base64.decode(result.response ?: "", Base64.DEFAULT))
 
-            val content: SearchData = objectMapper.readValue(decoded)
+            val data: SearchData = mapper.readValue(decoded)
 
-            content.result?.mapNotNull {
-                val link = fixUrlNull(it.slug ?: return@mapNotNull null)
-                newTvSeriesSearchResponse(
-                    it.title ?: return@mapNotNull null,
-                    link,
-                    TvType.TvSeries
-                ) {
+            data.result?.mapNotNull {
+
+                val slug = it.slug ?: return@mapNotNull null
+                val link = fixUrlNull(slug) ?: return@mapNotNull null
+                val title = it.title ?: return@mapNotNull null
+
+                newTvSeriesSearchResponse(title, link, TvType.TvSeries) {
                     this.posterUrl = it.poster
                 }
+
             } ?: emptyList()
 
         } catch (e: Exception) {
-            Log.e("Dizilla", "Search error: ${e.message}")
             emptyList()
         }
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse> =
-        search(query)
+    override suspend fun quickSearch(query: String) = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-
         try {
             val document = app.get(url).document
 
             val title =
-                document.selectFirst("div.poster.poster h2")?.ownText()
+                document.selectFirst("div.poster.poster h2")
+                    ?.ownText()
                     ?: return null
 
             val poster = fixUrlNull(
@@ -120,90 +100,44 @@ class Dizilla : MainAPI() {
             )
 
             val description =
-                document.selectFirst("div.mt-2.text-sm")?.ownText()?.trim()
-
-            val tags =
-                document.selectFirst("div.poster.poster h3")
+                document.selectFirst("div.mt-2.text-sm")
                     ?.ownText()
-                    ?.split(",")
-                    ?.map { it.trim() }
+                    ?.trim()
 
-            val year = document
-                .select("div.w-fit.min-w-fit")
-                .getOrNull(1)
-                ?.selectFirst("span.text-sm.opacity-60")
-                ?.ownText()
-                ?.split(" ")
-                ?.lastOrNull()
-                ?.toIntOrNull()
+            val year =
+                document.select("div.w-fit.min-w-fit")
+                    .getOrNull(1)
+                    ?.selectFirst("span.text-sm.opacity-60")
+                    ?.ownText()
+                    ?.split(" ")
+                    ?.lastOrNull()
+                    ?.toIntOrNull()
 
-            // ✅ CloudStream yeni Score yapısı
-            val scoreValue = document
-                .selectFirst("div.flex.items-center span.text-white.text-sm")
-                ?.ownText()
-                ?.split("/")
-                ?.firstOrNull()
-                ?.toDoubleOrNull()
+            val scoreValue =
+                document.selectFirst("div.flex.items-center span.text-white.text-sm")
+                    ?.ownText()
+                    ?.split("/")
+                    ?.firstOrNull()
+                    ?.toDoubleOrNull()
 
+            // ✅ SENİN SÜRÜME UYUMLU SCORE
             val score = scoreValue?.let {
-                Score(it.toInt(), 10)
+                Score((it * 10).toInt())
             }
 
             val actors =
                 document.select("div.global-box h5")
                     .map { Actor(it.ownText()) }
 
-            val episodes = mutableListOf<Episode>()
-
-            val seasonLinks =
-                document.select("div.flex.items-center.flex-wrap.gap-2.mb-4 a")
-
-            for (season in seasonLinks) {
-
-                val seasonUrl = fixUrl(season.attr("href"))
-                val seasonDoc = app.get(seasonUrl).document
-
-                val seasonNumber =
-                    seasonUrl.split("-")
-                        .getOrNull(seasonUrl.split("-").size - 2)
-                        ?.toIntOrNull()
-
-                seasonDoc.select("div.episodes div.cursor-pointer")
-                    .forEach { ep ->
-
-                        val links = ep.select("a")
-                        if (links.isEmpty()) return@forEach
-
-                        val epName = links.last()?.ownText() ?: return@forEach
-                        val epHref =
-                            fixUrlNull(links.last()?.attr("href"))
-                                ?: return@forEach
-
-                        val epNumber =
-                            links.first()?.ownText()
-                                ?.trim()
-                                ?.toIntOrNull()
-
-                        episodes.add(
-                            newEpisode(epHref) {
-                                this.name = epName
-                                this.season = seasonNumber
-                                this.episode = epNumber
-                            }
-                        )
-                    }
-            }
-
             return newTvSeriesLoadResponse(
                 title,
                 url,
                 TvType.TvSeries,
-                episodes
+                emptyList()
             ) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
-                this.tags = tags
                 this.score = score
                 addActors(actors)
             }
@@ -211,7 +145,6 @@ class Dizilla : MainAPI() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e("Dizilla", "Load error: ${e.message}")
             return null
         }
     }
@@ -222,7 +155,6 @@ class Dizilla : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-
         try {
             val document = app.get(data).document
 
@@ -233,7 +165,6 @@ class Dizilla : MainAPI() {
 
             val mapper = ObjectMapper()
                 .registerModule(KotlinModule.Builder().build())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
             val root = mapper.readTree(script)
 
@@ -247,10 +178,10 @@ class Dizilla : MainAPI() {
             val decoded =
                 String(Base64.decode(secureData, Base64.DEFAULT))
 
-            val decodedJson = mapper.readTree(decoded)
+            val json = mapper.readTree(decoded)
 
-            val sourceContent =
-                decodedJson.get("RelatedResults")
+            val source =
+                json.get("RelatedResults")
                     ?.get("getEpisodeSources")
                     ?.get("result")
                     ?.get(0)
@@ -260,24 +191,16 @@ class Dizilla : MainAPI() {
 
             val iframe =
                 fixUrlNull(
-                    Jsoup.parse(sourceContent)
+                    Jsoup.parse(source)
                         .selectFirst("iframe")
                         ?.attr("src")
                 ) ?: return false
 
-            loadExtractor(
-                iframe,
-                mainUrl,
-                subtitleCallback,
-                callback
-            )
+            loadExtractor(iframe, mainUrl, subtitleCallback, callback)
 
             return true
 
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
-            Log.e("Dizilla", "LoadLinks error: ${e.message}")
             return false
         }
     }
