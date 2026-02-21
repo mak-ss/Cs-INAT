@@ -1,7 +1,6 @@
 package com.keyiflerolsun
 
 import android.util.Base64
-import android.util.Log
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -28,20 +27,18 @@ class Dizilla : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val yil = Calendar.getInstance().get(Calendar.YEAR)
-        val url = "${request.data}?page=$page&tab=1&sort=date_desc&filterType=2&imdbMin=5&imdbMax=10&yearMin=1900&yearMax=$yil"
 
-        val home = app.get(url).document
-            .select("a.w-full")
-            .mapNotNull { element ->
-                val title = element.selectFirst("h2")?.text() ?: return@mapNotNull null
-                val href = fixUrlNull(element.attr("href")) ?: return@mapNotNull null
-                val poster = fixUrlNull(element.selectFirst("img")?.attr("src"))
+        val document = app.get("${request.data}?page=$page").document
 
-                newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                    this.posterUrl = poster
-                }
+        val home = document.select("a.w-full").mapNotNull { element ->
+            val title = element.selectFirst("h2")?.text() ?: return@mapNotNull null
+            val href = fixUrlNull(element.attr("href")) ?: return@mapNotNull null
+            val poster = fixUrlNull(element.selectFirst("img")?.attr("src"))
+
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = poster
             }
+        }
 
         return newHomePageResponse(request.name, home)
     }
@@ -84,6 +81,7 @@ class Dizilla : MainAPI() {
     override suspend fun quickSearch(query: String) = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
+
         try {
             val document = app.get(url).document
 
