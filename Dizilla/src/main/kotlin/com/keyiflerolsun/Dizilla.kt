@@ -11,7 +11,6 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Element
 import java.util.*
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -85,7 +84,6 @@ class Dizilla : MainAPI() {
     override suspend fun quickSearch(query: String) = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-
         try {
             val document = app.get(url).document
 
@@ -109,18 +107,6 @@ class Dizilla : MainAPI() {
                 ?.split(" ")
                 ?.lastOrNull()
                 ?.toIntOrNull()
-
-            // ✅ YENİ SCORE (CloudStream uyumlu)
-            val scoreValue = document
-                .selectFirst("div.flex.items-center span.text-white.text-sm")
-                ?.ownText()
-                ?.split("/")
-                ?.firstOrNull()
-                ?.toDoubleOrNull()
-
-            val score = scoreValue?.let {
-                Score((it * 10).toInt())
-            }
 
             val actors =
                 document.select("div.global-box h5")
@@ -161,7 +147,6 @@ class Dizilla : MainAPI() {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
-                this.score = score
                 addActors(actors)
             }
 
