@@ -1,5 +1,6 @@
 package com.keyiflerolsun
 
+import android.util.Log
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -55,7 +56,7 @@ class Dizilla : MainAPI() {
         "11" to "Western Dizi",
     )
 
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build()).apply {
+    private val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build()).apply {
         configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     }
 
@@ -74,9 +75,11 @@ class Dizilla : MainAPI() {
         }
 
         val response = app.post(url, headers = commonHeaders, referer = "$mainUrl/").toString()
-        val searchResult: SearchResult = mapper.readValue(response)
-        val decoded = String(base64Decode(searchResult.response ?: "").toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-        val listItems: ListItems = mapper.readValue(decoded)
+        val searchResult: SearchResult = objectMapper.readValue(response)
+        
+        // HATA BURADAYDI: Karakter setini doğrudan UTF_8 olarak düzelttim
+        val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
+        val listItems: ListItems = objectMapper.readValue(decoded)
         
         return newHomePageResponse(request.name, listItems.result.map { it.toMainPageResult() })
     }
@@ -101,9 +104,9 @@ class Dizilla : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val response = app.post("$mainUrl/api/bg/searchcontent?searchterm=$query", headers = commonHeaders, referer = "$mainUrl/").toString()
-        val searchResult: SearchResult = mapper.readValue(response)
-        val decoded = String(base64Decode(searchResult.response ?: "").toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-        val contentJson: SearchData = mapper.readValue(decoded)
+        val searchResult: SearchResult = objectMapper.readValue(response)
+        val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
+        val contentJson: SearchData = objectMapper.readValue(decoded)
 
         return contentJson.result?.filter { it.slug?.contains("/seri-filmler/") == false }?.map {
             val type = if (it.type == "Movies") TvType.Movie else TvType.TvSeries
@@ -122,9 +125,9 @@ class Dizilla : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: throw ErrorLoadingException("Data not found")
-        val secureData = mapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
-        val decoded = String(base64Decode(secureData).toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-        val root: Root = mapper.readValue(decoded)
+        val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
+        val decoded = String(base64Decode(secureData), Charsets.UTF_8)
+        val root: Root = objectMapper.readValue(decoded)
         
         val item = root.contentItem
         val title = if (item.originalTitle == item.cultureTitle || item.cultureTitle.isNullOrEmpty()) item.originalTitle else "${item.originalTitle} - ${item.cultureTitle}"
@@ -173,25 +176,25 @@ class Dizilla : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val doc = app.get(data).document
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: return false
-        val secureData = mapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
-        val decoded = String(base64Decode(secureData).toByteArray(Charsets.UTF_8), Charsets.UTF_8)
-        val root: Root = mapper.readValue(decoded)
+        val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
+        val decoded = String(base64Decode(secureData), Charsets.UTF_8)
+        val root: Root = objectMapper.readValue(decoded)
         
-        val sources = mutableListOf<SourceItem>()
+        val iframes = mutableListOf<SourceItem>()
         if (data.contains("/dizi/")) {
             root.relatedResults.getEpisodeSources?.result?.forEach {
-                sources.add(SourceItem(it.sourceContent ?: "", it.qualityName ?: ""))
+                iframes.add(SourceItem(it.sourceContent ?: "", it.qualityName ?: ""))
             }
         } else {
             root.relatedResults.getMoviePartsById?.result?.forEach { part ->
-                val partNode = mapper.readTree(decoded).get("RelatedResults").get("getMoviePartSourcesById_${part.id}")
+                val partNode = objectMapper.readTree(decoded).get("RelatedResults").get("getMoviePartSourcesById_${part.id}")
                 partNode?.get("result")?.forEach { src ->
-                    sources.add(SourceItem(src.get("source_content").asText(), src.get("quality_name").asText()))
+                    iframes.add(SourceItem(src.get("source_content").asText(), src.get("quality_name").asText()))
                 }
             }
         }
 
-        sources.forEach { 
+        iframes.forEach { 
             val iframe = fixUrlNull(Jsoup.parse(it.sourceContent).select("iframe").attr("src"))
             if (iframe != null) loadExtractor(iframe, "$mainUrl/", subtitleCallback, callback)
         }
