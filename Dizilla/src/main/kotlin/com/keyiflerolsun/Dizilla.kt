@@ -77,7 +77,7 @@ class Dizilla : MainAPI() {
         val response = app.post(url, headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
         
-        // HATA BURADAYDI: Karakter setini doğrudan UTF_8 olarak düzelttim
+        // DÜZELTME: Karakter seti doğrudan String üzerinden güvenli şekilde çözülüyor
         val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
         val listItems: ListItems = objectMapper.readValue(decoded)
         
@@ -105,6 +105,8 @@ class Dizilla : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val response = app.post("$mainUrl/api/bg/searchcontent?searchterm=$query", headers = commonHeaders, referer = "$mainUrl/").toString()
         val searchResult: SearchResult = objectMapper.readValue(response)
+        
+        // DÜZELTME: Güvenli UTF-8 decoding
         val decoded = String(base64Decode(searchResult.response ?: ""), Charsets.UTF_8)
         val contentJson: SearchData = objectMapper.readValue(decoded)
 
@@ -126,6 +128,8 @@ class Dizilla : MainAPI() {
         val doc = app.get(url).document
         val script = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: throw ErrorLoadingException("Data not found")
         val secureData = objectMapper.readTree(script).get("props").get("pageProps").get("secureData").asText()
+        
+        // DÜZELTME: ISO_8859_1 bağımlılığı kaldırıldı
         val decoded = String(base64Decode(secureData), Charsets.UTF_8)
         val root: Root = objectMapper.readValue(decoded)
         
