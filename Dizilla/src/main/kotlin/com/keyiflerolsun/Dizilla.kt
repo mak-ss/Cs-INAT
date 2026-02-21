@@ -16,7 +16,7 @@ class Dizilla : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "$mainUrl/dizi-turu/suc" to "Suc Dizileri"
+        "$mainUrl/dizi" to "Diziler"
     )
 
     // ================================
