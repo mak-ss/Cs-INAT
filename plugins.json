@@ -32,10 +32,10 @@
             "Live"
         ],
         "version": 5,
-        "internalName": "FsTv",
-        "description": "Watch live sport on tv with full HD streaming videos for football, tennis, basketball games world-wide and more. Get live scores, results, highlights on Fstv",
-        "url": "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/builds/FsTv.cs3",
-        "name": "FsTv"
+        "internalName": "SelcukFlix",
+        "description": "SelcukFlix",
+        "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/SelcukFlix.cs3",
+        "name": "SelcukFlix"
     },
     {
         "iconUrl": "https://www.google.com/s2/favicons?domain=fullraces.com&sz=%size%",
