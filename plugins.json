@@ -1,0 +1,22 @@
+[
+  {
+    "name": "CricHD",
+    "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/CricHD.cs3"
+  },
+  {
+    "name": "DiziPal",
+    "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/DiziPal.cs3"
+  },
+  {
+    "name": "Dizilla",
+    "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/Dizilla.cs3"
+  },
+  {
+    "name": "SelcukFlix",
+    "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/SelcukFlix.cs3"
+  },
+  {
+    "name": "Streamed",
+    "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/Streamed.cs3"
+  }
+]
