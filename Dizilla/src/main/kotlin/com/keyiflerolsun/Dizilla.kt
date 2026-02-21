@@ -1,6 +1,5 @@
 package com.keyiflerolsun
 
-import android.util.Log
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -12,11 +11,11 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.Jsoup
 import java.util.Calendar
-// Çakışmayı önlemek için senin modeline takma ad verdik
-import com.keyiflerolsun.Episode as DizillaEpisode 
+
+// Çakışmayı önlemek için Cloudstream'in Episode sınıfını açıkça belirtiyoruz
 import com.lagradost.cloudstream3.Episode as CloudstreamEpisode
 
-class SelcukFlix : MainAPI() {
+class Dizilla : MainAPI() {
     override var mainUrl = "https://dizilla.to"
     override var name = "Dizilla"
     override val hasMainPage = true
