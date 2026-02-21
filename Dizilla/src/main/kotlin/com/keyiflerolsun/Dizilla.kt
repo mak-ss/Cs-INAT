@@ -15,7 +15,7 @@ class Dizilla : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "$mainUrl/dizi-izle" to "Diziler"
+        "$mainUrl/dizi-izle" to "Dizi izle"
     )
 
     private val mapper = jacksonObjectMapper()
