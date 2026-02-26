@@ -1,9 +1,9 @@
-version = 39
+version = 39  // ! ARTTIRILDI: Versiyon güncellendi
 
 cloudstream {
     authors     = listOf("keyiflerolsun", "muratcesmecioglu")
     language    = "tr"
-    description = "en yeni dizileri güvenli ve hızlı şekilde sunar."
+    description = "DiziPal - Güncel domain (dizipal1541.com) - en yeni dizileri güvenli ve hızlı şekilde sunar."
 
     /**
      * Status int as the following:
@@ -12,7 +12,7 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
     **/
-    status  = 1 // will be 3 if unspecified
+    status  = 1
     tvTypes = listOf("TvSeries", "Movie")
-    iconUrl = "https://www.google.com/s2/favicons?domain=https://dizipal683.com&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=https://dizipal1541.com&sz=%size%"  // ! GÜNCELLENDİ
 }
