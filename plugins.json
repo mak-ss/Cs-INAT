@@ -13,10 +13,10 @@
             "Live"
         ],
         "version": 6,
-        "internalName": "AyzenTv",
-        "description": "AyzenTV ile canl\u0131 seyirin doruklar\u0131.",
-        "url": "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/builds/AyzenTv.cs3",
-        "name": "AyzenTv"
+        "internalName": "DiziPal",
+        "description": "DiziPal.",
+        "url": "https://raw.githubusercontent.com/mak-ss/Cs-INAT/builds/DiziPal.cs3",
+        "name": "Dizipal"
     },
     {
         "iconUrl": "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/refs/heads/master/.github/logo/faviconFsTv.png",
