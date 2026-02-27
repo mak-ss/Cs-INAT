@@ -31,7 +31,7 @@ class DiziPal : MainAPI() {
     override val mainPage = mainPageOf(
         "$mainUrl/filmler" to "Filmler",
         "$mainUrl/diziler" to "Diziler",
-        "$mainUrl/animeler" to "Animeler"
+        "$mainUrl/animeler" to "Animeler",
         "$mainUrl/platform/netflix" to "Netflix",
         "$mainUrl/platform/exxen" to "Exxen",
         "$mainUrl/platform/prime-video" to "Amazon Prime",
