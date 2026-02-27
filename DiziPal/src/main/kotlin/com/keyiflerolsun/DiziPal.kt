@@ -1,3 +1,5 @@
+// ! Bu araç @keyiflerolsun tarafından | @KekikAkademi için yazılmıştır.
+
 package com.keyiflerolsun
 
 import com.lagradost.cloudstream3.*
@@ -9,8 +11,9 @@ import org.jsoup.nodes.Element
 
 class DiziPal : MainAPI() {
 
-    override var mainUrl = "https://dizipal.bar"
-    override var name = "DiziPal"
+    // ! GÜNCELLENDİ: dizipal2027.com
+    override var mainUrl = "https://dizipal2027.com"
+    override var name = "DiziPal 2027"
     override val hasMainPage = true
     override var lang = "tr"
     override val hasQuickSearch = true
@@ -28,18 +31,22 @@ class DiziPal : MainAPI() {
         }
     }
 
+    // ! GÜNCELLENDİ: dizipal2027.com URL yapısına göre
     override val mainPage = mainPageOf(
-        "$mainUrl/filmler" to "Filmler",
+        "$mainUrl/trend" to "Trend",
         "$mainUrl/diziler" to "Diziler",
-        "$mainUrl/animeler" to "Animeler",
+        "$mainUrl/filmler" to "Filmler",
         "$mainUrl/platform/netflix" to "Netflix",
         "$mainUrl/platform/exxen" to "Exxen",
+        "$mainUrl/platform/blutv" to "BluTV",
         "$mainUrl/platform/prime-video" to "Amazon Prime",
-        "$mainUrl/platform/tabii" to "Tabii",
         "$mainUrl/platform/disney" to "Disney+",
         "$mainUrl/platform/gain" to "Gain",
         "$mainUrl/platform/tod" to "TOD",
-        "$mainUrl/platform/hbomax" to "HBOMAX"
+        "$mainUrl/platform/mubi" to "Mubi",
+        "$mainUrl/kategori/aksiyon" to "Aksiyon",
+        "$mainUrl/kategori/komedi" to "Komedi",
+        "$mainUrl/kategori/dram" to "Dram"
     )
 
     // ================= UTIL =================
@@ -74,13 +81,15 @@ class DiziPal : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
 
-        val url = if (page == 1) request.data else "${request.data}/page/$page"
+        // ! GÜNCELLENDİ: Sayfalama yapısı ?page=2 şeklinde
+        val url = if (page == 1) request.data else "${request.data}?page=$page"
         val doc = app.get(url, interceptor = interceptor).document
 
-        val items = doc.select("article, div.post-item, div.poster-item, div.video-item")
+        // ! GÜNCELLENDİ: article.movies ve article.series selector'leri
+        val items = doc.select("article.movies, article.series, div.content article")
             .mapNotNull { element ->
 
-                val title = element.selectFirst("h2, h3, .entry-title, .title, img")
+                val title = element.selectFirst("h3.title, h2, img")
                     ?.let { if (it.tagName() == "img") it.attr("alt") else it.text() }
                     ?.trim()
                     ?: return@mapNotNull null
@@ -89,12 +98,17 @@ class DiziPal : MainAPI() {
                     ?.let { fixUrl(it) }
                     ?: return@mapNotNull null
 
-                newTvSeriesSearchResponse(
-                    title,
-                    link,
-                    if (request.name == "Filmler") TvType.Movie else TvType.TvSeries
-                ) {
-                    posterUrl = element.getPoster()
+                // ! GÜNCELLENDİ: Film mi dizi mi kontrolü
+                val isMovie = link.contains("/film/") || element.hasClass("movies")
+
+                if (isMovie) {
+                    newMovieSearchResponse(title, link, TvType.Movie) {
+                        posterUrl = element.getPoster()
+                    }
+                } else {
+                    newTvSeriesSearchResponse(title, link, TvType.TvSeries) {
+                        posterUrl = element.getPoster()
+                    }
                 }
             }
 
@@ -105,13 +119,14 @@ class DiziPal : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
 
-        val url = "$mainUrl/?s=${query.replace(" ", "+")}"
+        // ! GÜNCELLENDİ: Arama URL'si /search?q=sorgu
+        val url = "$mainUrl/search?q=${query.replace(" ", "+")}"
         val doc = app.get(url, interceptor = interceptor).document
 
-        return doc.select("article, div.post-item, div.poster-item")
+        return doc.select("article.movies, article.series, .search-results article")
             .mapNotNull { element ->
 
-                val title = element.selectFirst("h2, h3, img")
+                val title = element.selectFirst("h3.title, h2, img")
                     ?.let { if (it.tagName() == "img") it.attr("alt") else it.text() }
                     ?.trim()
                     ?: return@mapNotNull null
@@ -120,14 +135,16 @@ class DiziPal : MainAPI() {
                     ?.let { fixUrl(it) }
                     ?: return@mapNotNull null
 
-                val isMovie = link.contains("/film") || link.contains("/movie")
+                val isMovie = link.contains("/film/") || element.hasClass("movies")
 
-                newTvSeriesSearchResponse(
-                    title,
-                    link,
-                    if (isMovie) TvType.Movie else TvType.TvSeries
-                ) {
-                    posterUrl = element.getPoster()
+                if (isMovie) {
+                    newMovieSearchResponse(title, link, TvType.Movie) {
+                        posterUrl = element.getPoster()
+                    }
+                } else {
+                    newTvSeriesSearchResponse(title, link, TvType.TvSeries) {
+                        posterUrl = element.getPoster()
+                    }
                 }
             }
     }
@@ -138,23 +155,38 @@ class DiziPal : MainAPI() {
 
         val doc = app.get(url, interceptor = interceptor).document
 
-        val title = doc.selectFirst("h1, .entry-title")?.text()?.trim() ?: "DiziPal"
-        val description = doc.selectFirst(".entry-content p, .plot")?.text()
-        val poster = fixUrl(doc.selectFirst("img.wp-post-image, .poster img")?.attr("src"))
+        // ! GÜNCELLENDİ: Başlık ve poster selector'leri
+        val title = doc.selectFirst("h1, .entry-title, div.title h1")?.text()?.trim() ?: "DiziPal"
+        val description = doc.selectFirst(".entry-content p, .summary p, .description")?.text()
+        val poster = fixUrl(doc.selectFirst("div.poster img, img.wp-post-image")?.attr("src"))
 
-        val episodeElements =
-            doc.select("a[href*='bolum'], a[href*='episode'], .episodes-list a")
+        // ! GÜNCELLENDİ: Bölümler div.episodes içinde
+        val episodeElements = doc.select("div.episodes a, .episodes-list a, a[href*='/bolum/']")
 
-        val episodes = episodeElements.mapIndexed { index, ep ->
-            newEpisode(
-                fixUrl(ep.attr("href")) ?: ""
-            ) {
-                name = ep.text().trim()
-                episode = index + 1
+        val episodes = if (episodeElements.isNotEmpty()) {
+            episodeElements.mapIndexed { index, ep ->
+                val epLink = fixUrl(ep.attr("href")) ?: ""
+                val epName = ep.selectFirst("span.name, .episode-name")?.text()?.trim() 
+                    ?: ep.text().trim()
+                    ?: "Bölüm ${index + 1}"
+
+                // ! GÜNCELLENDİ: Sezon ve bölüm bilgisini URL'den çıkar
+                // URL: /bolum/dizi-adi-1-sezon-3-bolum
+                val seasonMatch = Regex("(\\d+)-sezon").find(epLink)
+                val episodeMatch = Regex("(\\d+)-bolum").find(epLink)
+                
+                val season = seasonMatch?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                val episodeNum = episodeMatch?.groupValues?.get(1)?.toIntOrNull() ?: (index + 1)
+
+                newEpisode(epLink) {
+                    name = epName
+                    episode = episodeNum
+                    this.season = season
+                }
             }
-        }
+        } else null
 
-        return if (episodes.isNotEmpty()) {
+        return if (!episodes.isNullOrEmpty()) {
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = description
@@ -224,7 +256,7 @@ class DiziPal : MainAPI() {
             // iframe recursive
             doc.select("iframe").forEach {
                 val src = fixUrl(it.attr("src"))
-                if (!src.isNullOrBlank()) {
+                if (!src.isNullOrBlank() && !visited.contains(src)) {
                     extract(src)
                 }
             }
