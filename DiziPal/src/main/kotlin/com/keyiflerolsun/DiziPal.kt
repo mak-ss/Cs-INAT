@@ -32,6 +32,14 @@ class DiziPal : MainAPI() {
         "$mainUrl/filmler" to "Filmler",
         "$mainUrl/diziler" to "Diziler",
         "$mainUrl/animeler" to "Animeler"
+        "$mainUrl/platform/netflix" to "Netflix",
+        "$mainUrl/platform/exxen" to "Exxen",
+        "$mainUrl/platform/prime-video" to "Amazon Prime",
+        "$mainUrl/platform/tabii" to "Tabii",
+        "$mainUrl/platform/disney" to "Disney+",
+        "$mainUrl/platform/gain" to "Gain",
+        "$mainUrl/platform/tod" to "TOD",
+        "$mainUrl/platform/hbomax" to "HBOMAX"
     )
 
     // ================= UTIL =================
