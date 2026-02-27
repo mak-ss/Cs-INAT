@@ -2,6 +2,9 @@ package com.keyiflerolsun
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import okhttp3.Interceptor
+import okhttp3.Response
 import org.jsoup.nodes.Element
 
 class DiziPal : MainAPI() {
@@ -13,10 +16,30 @@ class DiziPal : MainAPI() {
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
 
+    private val cloudflareKiller by lazy { CloudflareKiller() }
+    private val interceptor by lazy { CloudflareInterceptor(cloudflareKiller) }
+
+    class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller) : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+            return if (response.code == 403 || response.code == 503) {
+                cloudflareKiller.intercept(chain)
+            } else response
+        }
+    }
+
     override val mainPage = mainPageOf(
         "$mainUrl/filmler" to "Filmler",
         "$mainUrl/diziler" to "Diziler",
-        "$mainUrl/animeler" to "Animeler"
+        "$mainUrl/animeler" to "Animeler",
+        "$mainUrl/platform/netflix" to "Netflix",
+        "$mainUrl/platform/exxen" to "Exxen",
+        "$mainUrl/platform/prime-video" to "Amazon Prime",
+        "$mainUrl/platform/tabii" to "Tabii",
+        "$mainUrl/platform/disney" to "Disney+",
+        "$mainUrl/platform/gain" to "Gain",
+        "$mainUrl/platform/tod" to "TOD",
+        "$mainUrl/platform/hbomax" to "HBOMAX"
     )
 
     // ================= UTIL =================
@@ -31,14 +54,15 @@ class DiziPal : MainAPI() {
     }
 
     private fun Element.getPoster(): String? {
-        val img = selectFirst("img") ?: return null
+        var poster =
+            selectFirst("img")?.attr("data-src")
+                ?: selectFirst("img")?.attr("data-lazy-src")
+                ?: selectFirst("img")?.attr("src")
 
-        val poster =
-            img.attr("data-src").ifBlank {
-                img.attr("data-lazy-src").ifBlank {
-                    img.attr("src")
-                }
-            }
+        if (poster.isNullOrBlank()) {
+            val srcset = selectFirst("img")?.attr("srcset")
+            poster = srcset?.split(",")?.lastOrNull()?.trim()?.split(" ")?.firstOrNull()
+        }
 
         return fixUrl(poster)
     }
@@ -50,25 +74,20 @@ class DiziPal : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
 
-        val url =
-            if (page == 1) request.data
-            else "${request.data}/page/$page"
+        val url = if (page == 1) request.data else "${request.data}/page/$page"
+        val doc = app.get(url, interceptor = interceptor).document
 
-        val doc = app.get(url).document
-
-        val items = doc.select("article, div.post-item, div.poster-item")
+        val items = doc.select("article, div.post-item, div.poster-item, div.video-item")
             .mapNotNull { element ->
+
+                val title = element.selectFirst("h2, h3, .entry-title, .title, img")
+                    ?.let { if (it.tagName() == "img") it.attr("alt") else it.text() }
+                    ?.trim()
+                    ?: return@mapNotNull null
 
                 val link = element.selectFirst("a")?.attr("href")
                     ?.let { fixUrl(it) }
                     ?: return@mapNotNull null
-
-                val title =
-                    element.selectFirst("h2, h3, .entry-title")
-                        ?.text()
-                        ?.trim()
-                        ?: element.selectFirst("img")?.attr("alt")
-                        ?: return@mapNotNull null
 
                 newTvSeriesSearchResponse(
                     title,
@@ -87,24 +106,26 @@ class DiziPal : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
 
         val url = "$mainUrl/?s=${query.replace(" ", "+")}"
-        val doc = app.get(url).document
+        val doc = app.get(url, interceptor = interceptor).document
 
-        return doc.select("article, div.post-item")
+        return doc.select("article, div.post-item, div.poster-item")
             .mapNotNull { element ->
+
+                val title = element.selectFirst("h2, h3, img")
+                    ?.let { if (it.tagName() == "img") it.attr("alt") else it.text() }
+                    ?.trim()
+                    ?: return@mapNotNull null
 
                 val link = element.selectFirst("a")?.attr("href")
                     ?.let { fixUrl(it) }
                     ?: return@mapNotNull null
 
-                val title =
-                    element.selectFirst("h2, h3")?.text()?.trim()
-                        ?: element.selectFirst("img")?.attr("alt")
-                        ?: return@mapNotNull null
+                val isMovie = link.contains("/film") || link.contains("/movie")
 
                 newTvSeriesSearchResponse(
                     title,
                     link,
-                    TvType.TvSeries
+                    if (isMovie) TvType.Movie else TvType.TvSeries
                 ) {
                     posterUrl = element.getPoster()
                 }
@@ -115,60 +136,33 @@ class DiziPal : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
 
-        val doc = app.get(url).document
+        val doc = app.get(url, interceptor = interceptor).document
 
-        val title =
-            doc.selectFirst("h1, .entry-title")
-                ?.text()
-                ?.trim()
-                ?: return newMovieLoadResponse(
-                    name,
-                    url,
-                    TvType.Movie,
-                    url
-                )
+        val title = doc.selectFirst("h1, .entry-title")?.text()?.trim() ?: "DiziPal"
+        val description = doc.selectFirst(".entry-content p, .plot")?.text()
+        val poster = fixUrl(doc.selectFirst("img.wp-post-image, .poster img")?.attr("src"))
 
-        val description =
-            doc.selectFirst(".entry-content p, .plot")
-                ?.text()
+        val episodeElements =
+            doc.select("a[href*='bolum'], a[href*='episode'], .episodes-list a")
 
-        val poster =
-            fixUrl(
-                doc.selectFirst("img.wp-post-image, .poster img")
-                    ?.attr("src")
-            )
-
-        val episodeLinks =
-            doc.select("a[href*='bolum'], a[href*='episode']")
-
-        val episodes = episodeLinks.mapIndexed { index, element ->
+        val episodes = episodeElements.mapIndexed { index, ep ->
             newEpisode(
-                fixUrl(element.attr("href")) ?: ""
+                fixUrl(ep.attr("href")) ?: ""
             ) {
-                name = element.text().trim()
+                name = ep.text().trim()
                 episode = index + 1
             }
         }
 
         return if (episodes.isNotEmpty()) {
-            newTvSeriesLoadResponse(
-                title,
-                url,
-                TvType.TvSeries,
-                episodes
-            ) {
-                posterUrl = poster
-                plot = description
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = poster
+                this.plot = description
             }
         } else {
-            newMovieLoadResponse(
-                title,
-                url,
-                TvType.Movie,
-                url
-            ) {
-                posterUrl = poster
-                plot = description
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.plot = description
             }
         }
     }
@@ -182,40 +176,61 @@ class DiziPal : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
-        val res = app.get(data, referer = mainUrl)
-        val html = res.text
+        val visited = mutableSetOf<String>()
 
-        Regex("""https?://[^"' ]+\.m3u8[^"' ]*""")
-            .findAll(html)
-            .forEach {
-                callback(
-                    newExtractorLink(
-                        name,
-                        "$name M3U8",
-                        it.value,
-                        ExtractorLinkType.M3U8
-                    ) {
-                        referer = data
-                        quality = Qualities.Unknown.value
-                    }
-                )
-            }
+        suspend fun extract(url: String) {
 
-        Regex("""https?://[^"' ]+\.mp4[^"' ]*""")
-            .findAll(html)
-            .forEach {
-                callback(
-                    newExtractorLink(
-                        name,
-                        "$name MP4",
-                        it.value,
-                        ExtractorLinkType.VIDEO
-                    ) {
-                        referer = data
-                        quality = Qualities.Unknown.value
-                    }
-                )
+            if (visited.contains(url)) return
+            visited.add(url)
+
+            val res = app.get(url, referer = mainUrl, interceptor = interceptor)
+            val html = res.text
+            val doc = res.document
+
+            // m3u8
+            Regex("""https?://[^"' ]+\.m3u8[^"' ]*""")
+                .findAll(html)
+                .forEach {
+                    callback(
+                        newExtractorLink(
+                            source = name,
+                            name = "$name M3U8",
+                            url = it.value,
+                            type = ExtractorLinkType.M3U8
+                        ) {
+                            referer = url
+                            quality = Qualities.Unknown.value
+                        }
+                    )
+                }
+
+            // mp4
+            Regex("""https?://[^"' ]+\.mp4[^"' ]*""")
+                .findAll(html)
+                .forEach {
+                    callback(
+                        newExtractorLink(
+                            source = name,
+                            name = "$name MP4",
+                            url = it.value,
+                            type = ExtractorLinkType.VIDEO
+                        ) {
+                            referer = url
+                            quality = Qualities.Unknown.value
+                        }
+                    )
+                }
+
+            // iframe recursive
+            doc.select("iframe").forEach {
+                val src = fixUrl(it.attr("src"))
+                if (!src.isNullOrBlank()) {
+                    extract(src)
+                }
             }
+        }
+
+        extract(data)
 
         return true
     }
