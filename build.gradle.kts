@@ -9,11 +9,6 @@ buildscript {
         maven { url = uri("https://jitpack.io") }
     }
     dependencies {
-        // ...
-    }
-}
-
-    dependencies {
         classpath("com.android.tools.build:gradle:8.13.2")
         // Cloudstream gradle plugin which makes everything work and builds plugins
         classpath("com.github.recloudstream:gradle:cce1b8d84d")
@@ -86,7 +81,6 @@ subprojects {
         }
     }
 
-
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
@@ -97,7 +91,7 @@ subprojects {
         // these dependencies can include any of those which are added by the app,
         // but you dont need to include any of them if you dont need them
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle
-        implementation(kotlin("stdlib"))                                              // Kotlin'in temel kütüphanesi
+        implementation(kotlin("stdlib"))                                             // Kotlin'in temel kütüphanesi
         implementation("com.github.Blatzar:NiceHttp:0.4.13")                          // HTTP kütüphanesi
         implementation("org.jsoup:jsoup:1.22.1")                                      // HTML ayrıştırıcı
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.5")   // Kotlin için Jackson JSON kütüphanesi
