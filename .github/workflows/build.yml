@@ -56,9 +56,8 @@ jobs:
           cd output
           git init
           git checkout -b builds
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Build $GITHUB_SHA"
-
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/UmayTrade/TurkuazTV.git builds --force
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/mak-ss/Cs-Inat.git builds --force
