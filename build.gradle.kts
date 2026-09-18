@@ -1,18 +1,21 @@
+import com.android.build.api.dsl.LibraryExtension
 import com.lagradost.cloudstream3.gradle.CloudstreamExtension
-import com.android.build.gradle.BaseExtension
+import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.register
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 buildscript {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        maven("https://jitpack.io")
     }
+
     dependencies {
-        classpath("com.android.tools.build:gradle:8.13.2")
-        // JitPack sürüm çakışmasını önlemek için tam commit hash'i tanımlandı
-        classpath("com.github.recloudstream:gradle:cce1b8d84d5df65d8366e6b4329e4bd43eb4eb92")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
+        classpath("com.android.tools.build:gradle:9.1.1")
+        classpath("com.github.recloudstream:gradle:81b1d424d2")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
     }
 }
 
@@ -20,60 +23,68 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        maven("https://jitpack.io")
     }
 }
 
-fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) = extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
+fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) =
+    extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
 
-fun Project.android(configuration: BaseExtension.() -> Unit) {
-    extensions.getByName<BaseExtension>("android").apply {
-        (extensions.findByName("java") as? JavaPluginExtension)?.apply {
-            toolchain {
-                languageVersion.set(JavaLanguageVersion.of(17))
-            }
-        }
-
-        configuration()
-    }
-}
+fun Project.android(configuration: LibraryExtension.() -> Unit) =
+    extensions.getByName<LibraryExtension>("android").configuration()
 
 subprojects {
     apply(plugin = "com.android.library")
-    apply(plugin = "kotlin-android")
     apply(plugin = "com.lagradost.cloudstream3.gradle")
 
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = JavaVersion.VERSION_11.toString()
+        targetCompatibility = JavaVersion.VERSION_11.toString()
+    }
+
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+            freeCompilerArgs.addAll(
+                "-Xno-call-assertions",
+                "-Xno-param-assertions",
+                "-Xno-receiver-assertions",
+                "-Xannotation-default-target=param-property"
+            )
+        }
+    }
+
     cloudstream {
-        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/Kraptor123/Cs-Karma")
+        setRepo(
+            System.getenv("GITHUB_REPOSITORY")
+                ?: "https://github.com/Kraptor123/Cs-GizliKeyif"
+        )
+
         authors = listOf("kraptor")
     }
 
     android {
-        namespace = "com.kraptor"
+        namespace = "com.kraptor.${
+            project.name.lowercase()
+                .replace("-", "_")
+                .let {
+                    if (it.firstOrNull()?.isDigit() == true) "p$it" else it
+                }
+        }"
+
+        compileSdk = 36
 
         defaultConfig {
             minSdk = 21
-            compileSdkVersion(36)
+        }
+
+        lint {
             targetSdk = 36
         }
 
         compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
-        }
-
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile> {
-            compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
-                freeCompilerArgs.addAll(
-                    listOf(
-                        "-Xno-call-assertions",
-                        "-Xno-param-assertions",
-                        "-Xno-receiver-assertions",
-                        "-Xannotation-default-target=param-property"
-                    )
-                )
-            }
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
     }
 
@@ -90,10 +101,32 @@ subprojects {
         implementation("com.fasterxml.jackson.core:jackson-databind:2.13.5")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-        implementation("androidx.appcompat:appcompat:1.7.1")
+        implementation("org.mozilla:rhino:1.9.0")
+        implementation("me.xdrop:fuzzywuzzy:1.4.0")
+        implementation("com.google.code.gson:gson:2.13.2")
+        implementation("app.cash.quickjs:quickjs-android:0.9.2")
+        implementation("com.github.vidstige:jadb:v1.2.1")
     }
 }
 
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+tasks.register("derle") {
+    group = "help"
+
+    doLast {
+        println("Filtreleme modu aktif: status=1 olanlar disindaki eklentiler derleme disi birakildi.")
+    }
+}
+
+gradle.taskGraph.whenReady {
+    if (hasTask(":derle")) {
+        allTasks.forEach { task ->
+            if (task.project != rootProject) {
+                val csExt = task.project.extensions.findByType<CloudstreamExtension>()
+
+                if (csExt != null && csExt.status != 1) {
+                    task.enabled = false
+                }
+            }
+        }
+    }
 }
