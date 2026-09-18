@@ -6,9 +6,12 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        // Shitpack repo which contains our tools and dependencies
-        maven("https://jitpack.io")
+        maven { url 'https://jitpack.io' }
     }
+    dependencies {
+        // ...
+    }
+}
 
     dependencies {
         classpath("com.android.tools.build:gradle:8.13.2")
